@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+/* The night desk. The lamp amber is the one accent — it falls on the moves that
+   are yours. Re-skin from here. */
+@theme {
+  --color-paper: #191a21; /* the dark desk surface */
+  --color-ink: #e8e4db; /* warm lamplight white */
+  --color-muted: #7e808a;
+  --color-rule: #25272f;
+  --color-mark: #f4b860; /* lamp amber */
+  --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --font-mono: "Spline Sans Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The signature: the lamp falls on your move — a warm amber underline that
+   clones across wrapped lines. */
+.lit {
+  background-image: linear-gradient(var(--color-mark), var(--color-mark));
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 100% 2px;
+  padding-bottom: 3px;
+}
+
+/* One orchestrated moment: the top "your move" lights up on load. */
+.lit-draw {
+  animation: lit-in 0.65s cubic-bezier(0.2, 0.7, 0.2, 1) 0.4s both;
+}
+@keyframes lit-in {
+  from {
+    background-size: 0 2px;
+  }
+  to {
+    background-size: 100% 2px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lit-draw {
+    animation: none;
+  }
+}
+
+.scroll-soft::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-soft::-webkit-scrollbar-thumb {
+  background: #3a3c44;
+  border-radius: 9999px;
+}
