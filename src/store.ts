@@ -132,6 +132,7 @@ interface State {
   deleteTask: (projectId: string, taskId: string) => void
   loadExamples: () => void
   clearAll: () => void
+  importProjects: (projects: Project[]) => void
 }
 
 export const useStore = create<State>()(
@@ -260,6 +261,8 @@ export const useStore = create<State>()(
       loadExamples: () => set({ projects: EXAMPLES.map((p) => ({ ...p })) }),
 
       clearAll: () => set({ projects: [] }),
+
+      importProjects: (projects) => set({ projects }),
     }),
     { name: 'tracker-state' },
   ),

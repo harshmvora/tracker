@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
-import { Check } from 'lucide-react'
-import type { Project } from '../types'
+import { useState, type ReactNode } from 'react'
+import { Check, ChevronRight, ChevronDown } from 'lucide-react'
+import type { Project, Task } from '../types'
 import { useStore } from '../store'
 import { relativeTime, isStale, initials, nextOpenTask } from '../lib/ui'
 
@@ -17,6 +17,45 @@ function recency(a: Project, b: Project) {
   return new Date(b.lastTouched).getTime() - new Date(a.lastTouched).getTime()
 }
 
+function InlineNode({
+  projectId,
+  task,
+  depth,
+}: {
+  projectId: string
+  task: Task
+  depth: number
+}) {
+  const toggleTask = useStore((s) => s.toggleTask)
+  return (
+    <div>
+      <div className="flex items-start gap-2 py-0.5" style={{ paddingLeft: depth * 16 }}>
+        <button
+          onClick={() => toggleTask(projectId, task.id)}
+          aria-label={task.done ? 'mark not done' : 'mark done'}
+          className={`mt-[2px] grid h-[13px] w-[13px] shrink-0 place-items-center rounded-[3px] border transition ${
+            task.done
+              ? 'border-mark bg-mark/20 text-mark'
+              : 'border-rule text-transparent hover:border-muted'
+          }`}
+        >
+          <Check className="h-2.5 w-2.5" strokeWidth={3} />
+        </button>
+        <span
+          className={`font-serif text-[14px] leading-snug ${
+            task.done ? 'text-muted line-through' : 'text-ink'
+          }`}
+        >
+          {task.title}
+        </span>
+      </div>
+      {task.tasks.map((c) => (
+        <InlineNode key={c.id} projectId={projectId} task={c} depth={depth + 1} />
+      ))}
+    </div>
+  )
+}
+
 function Row({
   project,
   lit,
@@ -30,8 +69,10 @@ function Row({
 }) {
   const toggleTask = useStore((s) => s.toggleTask)
   const updateProject = useStore((s) => s.updateProject)
+  const [expanded, setExpanded] = useState(false)
 
   const tasks = project.tasks ?? []
+  const hasTasks = tasks.length > 0
   const next = lit ? nextOpenTask(tasks) : null
 
   let lineText: string
@@ -66,51 +107,81 @@ function Row({
   }
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(project.id)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onSelect(project.id)
-        }
-      }}
-      className="grid w-full cursor-pointer grid-cols-[18px_minmax(84px,140px)_minmax(0,1fr)_auto] items-baseline gap-3 border-t border-rule py-3 text-left transition-colors hover:bg-ink/[0.03]"
-    >
-      {lit ? (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            if (next) toggleTask(project.id, next.id)
-            else updateProject(project.id, { status: 'done' })
-          }}
-          aria-label="complete your move"
-          className="mt-[3px] grid h-[15px] w-[15px] self-start place-items-center rounded-[4px] border border-rule text-transparent transition hover:border-mark hover:text-mark"
-        >
-          <Check className="h-3 w-3" strokeWidth={3} />
-        </button>
-      ) : (
-        <span />
-      )}
-      <span className={`truncate font-serif text-[15px] ${lit ? 'text-ink' : 'text-muted'}`}>
-        {project.name}
-      </span>
-      <span className="min-w-0">{action}</span>
-      <span className="flex items-center justify-end gap-1.5 pl-2">
-        {project.people.slice(0, 3).map((p) => (
-          <span
-            key={p}
-            title={p}
-            className="inline-grid h-5 w-5 place-items-center rounded-full border-[0.5px] border-rule text-[11px] text-muted"
+    <div className="border-t border-rule">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onSelect(project.id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onSelect(project.id)
+          }
+        }}
+        className="grid w-full cursor-pointer grid-cols-[18px_16px_minmax(80px,132px)_minmax(0,1fr)_auto] items-baseline gap-2.5 py-3 text-left transition-colors hover:bg-ink/[0.03]"
+      >
+        {lit ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              if (next) toggleTask(project.id, next.id)
+              else updateProject(project.id, { status: 'done' })
+            }}
+            aria-label="complete your move"
+            className="mt-[3px] grid h-[15px] w-[15px] self-start place-items-center rounded-[4px] border border-rule text-transparent transition hover:border-mark hover:text-mark"
           >
-            {initials(p)}
-          </span>
-        ))}
-        <span className="ml-0.5 min-w-[58px] text-right font-mono text-[12px] text-muted">
-          {meta(project)}
+            <Check className="h-3 w-3" strokeWidth={3} />
+          </button>
+        ) : (
+          <span />
+        )}
+
+        {hasTasks ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setExpanded((v) => !v)
+            }}
+            aria-label={expanded ? 'collapse tasks' : 'expand tasks'}
+            className="mt-[3px] self-start text-muted transition hover:text-ink"
+          >
+            {expanded ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" />
+            )}
+          </button>
+        ) : (
+          <span />
+        )}
+
+        <span className={`truncate font-serif text-[15px] ${lit ? 'text-ink' : 'text-muted'}`}>
+          {project.name}
         </span>
-      </span>
+        <span className="min-w-0">{action}</span>
+        <span className="flex items-center justify-end gap-1.5 pl-2">
+          {project.people.slice(0, 3).map((p) => (
+            <span
+              key={p}
+              title={p}
+              className="inline-grid h-5 w-5 place-items-center rounded-full border-[0.5px] border-rule text-[11px] text-muted"
+            >
+              {initials(p)}
+            </span>
+          ))}
+          <span className="ml-0.5 min-w-[58px] text-right font-mono text-[12px] text-muted">
+            {meta(project)}
+          </span>
+        </span>
+      </div>
+
+      {expanded && hasTasks && (
+        <div className="pb-3 pl-[46px] pr-2">
+          {tasks.map((t) => (
+            <InlineNode key={t.id} projectId={project.id} task={t} depth={0} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
