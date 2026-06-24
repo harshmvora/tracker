@@ -2,6 +2,11 @@ import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { useStore } from '../store'
 import { MODEL } from '../lib/claude'
+import {
+  notificationsSupported,
+  notificationPermission,
+  requestNotificationPermission,
+} from '../lib/notifications'
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const apiKey = useStore((s) => s.apiKey)
@@ -11,6 +16,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const projects = useStore((s) => s.projects)
   const [key, setKey] = useState(apiKey)
   const [importErr, setImportErr] = useState('')
+  const [permission, setPermission] = useState(() => notificationPermission())
   const fileRef = useRef<HTMLInputElement>(null)
 
   function handleExport() {
@@ -77,6 +83,36 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </p>
           <p className="mt-2 font-mono text-[11px] text-muted">model · {MODEL}</p>
         </div>
+
+        {notificationsSupported() && (
+          <div className="mt-6 border-t border-rule pt-5">
+            <div className="font-mono text-[11px] text-muted">notifications</div>
+            <div className="mt-3">
+              {permission === 'granted' ? (
+                <p className="font-mono text-[12px] text-ink">
+                  enabled —{' '}
+                  <span className="text-muted">
+                    you'll get a desktop notification when a snoozed project wakes up.
+                  </span>
+                </p>
+              ) : permission === 'denied' ? (
+                <p className="font-mono text-[12px] text-muted">
+                  blocked by browser — allow notifications for this site in your browser settings to enable.
+                </p>
+              ) : (
+                <button
+                  onClick={async () => {
+                    const result = await requestNotificationPermission()
+                    setPermission(result)
+                  }}
+                  className="font-mono text-[12px] text-ink underline decoration-rule underline-offset-2 hover:decoration-ink"
+                >
+                  enable desktop notifications
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="mt-6 border-t border-rule pt-5">
           <div className="font-mono text-[11px] text-muted">data</div>

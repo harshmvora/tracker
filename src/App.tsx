@@ -1,9 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from './store'
 import { DumpBox } from './components/DumpBox'
 import { Ledger } from './components/Ledger'
 import { ProjectDetail } from './components/ProjectDetail'
 import { SettingsModal } from './components/SettingsModal'
+import { fireNotification, notificationPermission } from './lib/notifications'
+
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10)
+}
 
 export default function App() {
   const projects = useStore((s) => s.projects)
@@ -11,6 +16,25 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [query, setQuery] = useState('')
+
+  // Fire desktop notifications for projects whose snooze expires today
+  useEffect(() => {
+    if (notificationPermission() !== 'granted') return
+    const today = todayStr()
+    const storageKey = `tracker-notified-${today}`
+    const alreadyNotified = new Set<string>(JSON.parse(localStorage.getItem(storageKey) || '[]'))
+
+    const waking = projects.filter(
+      (p) => p.snoozedUntil && p.snoozedUntil <= today && !alreadyNotified.has(p.id),
+    )
+    if (waking.length === 0) return
+
+    waking.forEach((p) => {
+      fireNotification(p.name, p.nextAction || 'Back on your list tonight.')
+      alreadyNotified.add(p.id)
+    })
+    localStorage.setItem(storageKey, JSON.stringify([...alreadyNotified]))
+  }, [projects])
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
