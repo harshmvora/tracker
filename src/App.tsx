@@ -4,7 +4,12 @@ import { DumpBox } from './components/DumpBox'
 import { Ledger } from './components/Ledger'
 import { ProjectDetail } from './components/ProjectDetail'
 import { SettingsModal } from './components/SettingsModal'
-import { fireNotification, notificationPermission } from './lib/notifications'
+import {
+  fireNotification,
+  notificationPermission,
+  dueForReminder,
+  markReminderFired,
+} from './lib/notifications'
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
@@ -17,23 +22,37 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [query, setQuery] = useState('')
 
-  // Fire desktop notifications for projects whose snooze expires today
+  // Fire desktop notifications every 2 hours for snoozed-and-due projects
   useEffect(() => {
-    if (notificationPermission() !== 'granted') return
-    const today = todayStr()
-    const storageKey = `tracker-notified-${today}`
-    const alreadyNotified = new Set<string>(JSON.parse(localStorage.getItem(storageKey) || '[]'))
+    function check() {
+      if (notificationPermission() !== 'granted') return
+      if (!dueForReminder()) return
 
-    const waking = projects.filter(
-      (p) => p.snoozedUntil && p.snoozedUntil <= today && !alreadyNotified.has(p.id),
-    )
-    if (waking.length === 0) return
+      const today = todayStr()
+      const due = projects.filter((p) => p.snoozedUntil && p.snoozedUntil <= today)
+      if (due.length === 0) return
 
-    waking.forEach((p) => {
-      fireNotification(p.name, p.nextAction || 'Back on your list tonight.')
-      alreadyNotified.add(p.id)
-    })
-    localStorage.setItem(storageKey, JSON.stringify([...alreadyNotified]))
+      markReminderFired()
+      if (due.length === 1) {
+        fireNotification(due[0].name, due[0].nextAction || 'Back on your list.')
+      } else {
+        fireNotification(
+          `${due.length} projects are back on your list`,
+          due.map((p) => p.name).join(', '),
+        )
+      }
+    }
+
+    check() // fire immediately on mount / projects change
+    const id = setInterval(check, 2 * 60 * 60 * 1000)
+
+    const onVisible = () => { if (document.visibilityState === 'visible') check() }
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [projects])
 
   const visible = useMemo(() => {
