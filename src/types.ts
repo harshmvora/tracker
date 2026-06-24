@@ -23,6 +23,7 @@ export interface Project {
   people: string[]
   waitingOn?: string
   due?: string // YYYY-MM-DD
+  snoozedUntil?: string // YYYY-MM-DD — hide from "on you tonight" until this date
   tags: string[]
   createdAt: string
   lastTouched: string

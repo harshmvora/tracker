@@ -130,6 +130,8 @@ interface State {
   toggleTask: (projectId: string, taskId: string) => void
   editTask: (projectId: string, taskId: string, title: string) => void
   deleteTask: (projectId: string, taskId: string) => void
+  snoozeProject: (id: string, until: string) => void
+  unsnoozeProject: (id: string) => void
   loadExamples: () => void
   clearAll: () => void
   importProjects: (projects: Project[]) => void
@@ -255,6 +257,20 @@ export const useStore = create<State>()(
         set((s) => ({
           projects: s.projects.map((p) =>
             p.id === projectId ? { ...p, tasks: removeTask(p.tasks ?? [], taskId) } : p,
+          ),
+        })),
+
+      snoozeProject: (id, until) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === id ? { ...p, snoozedUntil: until } : p,
+          ),
+        })),
+
+      unsnoozeProject: (id) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === id ? { ...p, snoozedUntil: undefined } : p,
           ),
         })),
 

@@ -1,8 +1,22 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Check, ChevronRight, ChevronDown } from 'lucide-react'
 import type { Project, Task } from '../types'
 import { useStore } from '../store'
 import { relativeTime, isStale, initials, nextOpenTask } from '../lib/ui'
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function isSnoozed(p: Project): boolean {
+  return !!p.snoozedUntil && p.snoozedUntil > today()
+}
+
+function addDays(n: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + n)
+  return d.toISOString().slice(0, 10)
+}
 
 function meta(p: Project): string {
   const rel = relativeTime(p.lastTouched)
@@ -17,15 +31,7 @@ function recency(a: Project, b: Project) {
   return new Date(b.lastTouched).getTime() - new Date(a.lastTouched).getTime()
 }
 
-function InlineNode({
-  projectId,
-  task,
-  depth,
-}: {
-  projectId: string
-  task: Task
-  depth: number
-}) {
+function InlineNode({ projectId, task, depth }: { projectId: string; task: Task; depth: number }) {
   const toggleTask = useStore((s) => s.toggleTask)
   return (
     <div>
@@ -41,11 +47,7 @@ function InlineNode({
         >
           <Check className="h-2.5 w-2.5" strokeWidth={3} />
         </button>
-        <span
-          className={`font-serif text-[14px] leading-snug ${
-            task.done ? 'text-muted line-through' : 'text-ink'
-          }`}
-        >
+        <span className={`font-serif text-[14px] leading-snug ${task.done ? 'text-muted line-through' : 'text-ink'}`}>
           {task.title}
         </span>
       </div>
@@ -56,20 +58,70 @@ function InlineNode({
   )
 }
 
+function SnoozePopover({
+  onPick,
+  onClose,
+}: {
+  onPick: (date: string) => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-full z-50 mt-1 w-52 rounded border border-rule bg-paper py-2 shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {[
+        { label: 'tomorrow', date: addDays(1) },
+        { label: 'in 3 days', date: addDays(3) },
+        { label: 'next week', date: addDays(7) },
+      ].map(({ label, date }) => (
+        <button
+          key={label}
+          onClick={() => { onPick(date); onClose() }}
+          className="flex w-full items-center justify-between px-4 py-1.5 font-mono text-[12px] text-ink hover:bg-ink/[0.06]"
+        >
+          <span>{label}</span>
+          <span className="text-muted">{date.slice(5)}</span>
+        </button>
+      ))}
+      <div className="mx-4 mt-2 border-t border-rule pt-2">
+        <label className="block font-mono text-[11px] text-muted">pick a date</label>
+        <input
+          type="date"
+          min={addDays(1)}
+          onChange={(e) => {
+            if (e.target.value) { onPick(e.target.value); onClose() }
+          }}
+          className="mt-1 w-full bg-transparent font-mono text-[12px] text-ink outline-none [color-scheme:dark]"
+        />
+      </div>
+    </div>
+  )
+}
+
 function Row({
   project,
   lit,
   draw,
+  snoozed,
   onSelect,
 }: {
   project: Project
   lit: boolean
   draw: boolean
+  snoozed: boolean
   onSelect: (id: string) => void
 }) {
   const toggleTask = useStore((s) => s.toggleTask)
   const updateProject = useStore((s) => s.updateProject)
+  const snoozeProject = useStore((s) => s.snoozeProject)
+  const unsnoozeProject = useStore((s) => s.unsnoozeProject)
   const [expanded, setExpanded] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const tasks = project.tasks ?? []
   const hasTasks = tasks.length > 0
@@ -83,12 +135,12 @@ function Row({
     lineText = project.waitingOn ? `Waiting on ${project.waitingOn}` : project.nextAction || '—'
   } else if (next) {
     lineText = next.title
-    actionable = true
+    actionable = !snoozed
   } else if (tasks.length) {
     lineText = 'all tasks done'
   } else if (project.nextAction) {
     lineText = project.nextAction
-    actionable = true
+    actionable = !snoozed
   } else {
     lineText = '—'
   }
@@ -107,20 +159,19 @@ function Row({
   }
 
   return (
-    <div className="border-t border-rule">
+    <div className="relative border-t border-rule">
       <div
         role="button"
         tabIndex={0}
-        onClick={() => onSelect(project.id)}
+        onClick={() => { if (!pickerOpen) onSelect(project.id) }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            onSelect(project.id)
-          }
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(project.id) }
         }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => { setHovered(false); setPickerOpen(false) }}
         className="grid w-full cursor-pointer grid-cols-[18px_16px_minmax(80px,132px)_minmax(0,1fr)_auto] items-baseline gap-2.5 py-3 text-left transition-colors hover:bg-ink/[0.03]"
       >
-        {lit ? (
+        {lit && !snoozed ? (
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -138,28 +189,22 @@ function Row({
 
         {hasTasks ? (
           <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setExpanded((v) => !v)
-            }}
+            onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v) }}
             aria-label={expanded ? 'collapse tasks' : 'expand tasks'}
             className="mt-[3px] self-start text-muted transition hover:text-ink"
           >
-            {expanded ? (
-              <ChevronDown className="h-3.5 w-3.5" />
-            ) : (
-              <ChevronRight className="h-3.5 w-3.5" />
-            )}
+            {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </button>
         ) : (
           <span />
         )}
 
-        <span className={`truncate font-serif text-[15px] ${lit ? 'text-ink' : 'text-muted'}`}>
+        <span className={`truncate font-serif text-[15px] ${lit && !snoozed ? 'text-ink' : 'text-muted'}`}>
           {project.name}
         </span>
         <span className="min-w-0">{action}</span>
-        <span className="flex items-center justify-end gap-1.5 pl-2">
+
+        <span className="relative flex items-center justify-end gap-2 pl-2">
           {project.people.slice(0, 3).map((p) => (
             <span
               key={p}
@@ -169,9 +214,37 @@ function Row({
               {initials(p)}
             </span>
           ))}
-          <span className="ml-0.5 min-w-[58px] text-right font-mono text-[12px] text-muted">
-            {meta(project)}
-          </span>
+
+          {hovered && !snoozed && project.status !== 'done' && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setPickerOpen((v) => !v) }}
+              className="font-mono text-[11px] text-muted hover:text-ink"
+            >
+              snooze
+            </button>
+          )}
+          {hovered && snoozed && (
+            <button
+              onClick={(e) => { e.stopPropagation(); unsnoozeProject(project.id) }}
+              className="font-mono text-[11px] text-muted hover:text-ink"
+            >
+              tonight
+            </button>
+          )}
+          {!hovered && (
+            <span className="min-w-[58px] text-right font-mono text-[12px] text-muted">
+              {snoozed && project.snoozedUntil
+                ? `until ${project.snoozedUntil.slice(5)}`
+                : meta(project)}
+            </span>
+          )}
+
+          {pickerOpen && (
+            <SnoozePopover
+              onPick={(date) => snoozeProject(project.id, date)}
+              onClose={() => setPickerOpen(false)}
+            />
+          )}
         </span>
       </div>
 
@@ -191,12 +264,14 @@ function Group({
   projects,
   lit = false,
   drawFirst = false,
+  snoozed = false,
   onSelect,
 }: {
   label: string
   projects: Project[]
   lit?: boolean
   drawFirst?: boolean
+  snoozed?: boolean
   onSelect: (id: string) => void
 }) {
   if (projects.length === 0) return null
@@ -212,6 +287,7 @@ function Group({
             project={p}
             lit={lit}
             draw={drawFirst && i === 0}
+            snoozed={snoozed}
             onSelect={onSelect}
           />
         ))}
@@ -234,14 +310,20 @@ export function Ledger({
   }
 
   const onYou = projects
-    .filter((p) => p.status === 'active' || p.status === 'stalled')
+    .filter((p) => (p.status === 'active' || p.status === 'stalled') && !isSnoozed(p))
     .sort((a, b) => Number(isStale(b)) - Number(isStale(a)) || recency(a, b))
+
+  const notTonight = projects
+    .filter((p) => (p.status === 'active' || p.status === 'stalled') && isSnoozed(p))
+    .sort((a, b) => (a.snoozedUntil ?? '').localeCompare(b.snoozedUntil ?? ''))
+
   const resting = projects.filter((p) => p.status === 'waiting').sort(recency)
   const done = projects.filter((p) => p.status === 'done').sort(recency)
 
   return (
     <div>
       <Group label="on you tonight" projects={onYou} lit drawFirst onSelect={onSelect} />
+      <Group label="not tonight" projects={notTonight} snoozed onSelect={onSelect} />
       <Group label="resting" projects={resting} onSelect={onSelect} />
       <Group label="done" projects={done} onSelect={onSelect} />
     </div>
