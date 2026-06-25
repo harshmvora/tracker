@@ -11,6 +11,7 @@ export interface Task {
   id: string
   title: string
   done: boolean
+  completedAt?: string // ISO timestamp set when marked done, cleared when un-done
   tasks: Task[]
 }
 

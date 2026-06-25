@@ -4,6 +4,7 @@ import { DumpBox } from './components/DumpBox'
 import { Ledger } from './components/Ledger'
 import { ProjectDetail } from './components/ProjectDetail'
 import { SettingsModal } from './components/SettingsModal'
+import { EodReport } from './components/EodReport'
 import {
   fireNotification,
   notificationPermission,
@@ -21,6 +22,7 @@ export default function App() {
   const loadExamples = useStore((s) => s.loadExamples)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [eodOpen, setEodOpen] = useState(false)
   const [query, setQuery] = useState('')
 
   // Fire desktop notifications every 2 hours for snoozed-and-due projects
@@ -76,6 +78,14 @@ export default function App() {
         <div className="flex items-baseline gap-3 font-mono text-[12px] text-muted">
           <span>{date}</span>
           <span className="text-rule">·</span>
+          {projects.length > 0 && (
+            <>
+              <button onClick={() => setEodOpen(true)} className="hover:text-ink">
+                wrap up
+              </button>
+              <span className="text-rule">·</span>
+            </>
+          )}
           <button onClick={() => setSettingsOpen(true)} className="hover:text-ink">
             settings
           </button>
@@ -116,6 +126,7 @@ export default function App() {
 
       {selected && <ProjectDetail project={selected} onClose={() => setSelectedId(null)} />}
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {eodOpen && <EodReport projects={projects} onClose={() => setEodOpen(false)} />}
     </div>
   )
 }

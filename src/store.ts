@@ -27,7 +27,9 @@ function addUnder(tasks: Task[], parentId: string | null, task: Task): Task[] {
 
 function toggleDone(tasks: Task[], id: string): Task[] {
   return tasks.map((t) =>
-    t.id === id ? { ...t, done: !t.done } : { ...t, tasks: toggleDone(t.tasks, id) },
+    t.id === id
+      ? { ...t, done: !t.done, completedAt: !t.done ? nowISO() : undefined }
+      : { ...t, tasks: toggleDone(t.tasks, id) },
   )
 }
 
@@ -130,6 +132,7 @@ interface State {
   toggleTask: (projectId: string, taskId: string) => void
   editTask: (projectId: string, taskId: string, title: string) => void
   deleteTask: (projectId: string, taskId: string) => void
+  addLogEntry: (projectId: string, text: string) => void
   snoozeProject: (id: string, until: string) => void
   unsnoozeProject: (id: string) => void
   loadExamples: () => void
@@ -257,6 +260,19 @@ export const useStore = create<State>()(
         set((s) => ({
           projects: s.projects.map((p) =>
             p.id === projectId ? { ...p, tasks: removeTask(p.tasks ?? [], taskId) } : p,
+          ),
+        })),
+
+      addLogEntry: (projectId, text) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === projectId
+              ? {
+                  ...p,
+                  log: [{ id: uid(), at: nowISO(), text: text.trim() }, ...p.log],
+                  lastTouched: nowISO(),
+                }
+              : p,
           ),
         })),
 

@@ -43,3 +43,29 @@ export function openLeafCount(tasks: Task[]): number {
   }
   return n
 }
+
+function localDateStr(d = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Log entries added today for this project. */
+export function todayLogEntries(p: Project) {
+  const today = localDateStr()
+  return p.log.filter((e) => e.at.slice(0, 10) === today)
+}
+
+/** All leaf tasks completed today across the tree. */
+export function todayCompletedTasks(tasks: Task[]): Task[] {
+  const today = localDateStr()
+  const result: Task[] = []
+  function walk(list: Task[]) {
+    for (const t of list) {
+      if (!t.tasks.length && t.done && t.completedAt && t.completedAt.slice(0, 10) === today) {
+        result.push(t)
+      }
+      walk(t.tasks)
+    }
+  }
+  walk(tasks)
+  return result
+}

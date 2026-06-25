@@ -2,7 +2,7 @@ import { useRef, useState, type ReactNode } from 'react'
 import { Check, ChevronRight, ChevronDown } from 'lucide-react'
 import type { Project, Task } from '../types'
 import { useStore } from '../store'
-import { relativeTime, isStale, initials, nextOpenTask } from '../lib/ui'
+import { relativeTime, isStale, initials, nextOpenTask, todayLogEntries } from '../lib/ui'
 
 function localDateStr(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -123,9 +123,13 @@ function Row({
   const updateProject = useStore((s) => s.updateProject)
   const snoozeProject = useStore((s) => s.snoozeProject)
   const unsnoozeProject = useStore((s) => s.unsnoozeProject)
+  const addLogEntry = useStore((s) => s.addLogEntry)
   const [expanded, setExpanded] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [updateOpen, setUpdateOpen] = useState(false)
+  const [updateText, setUpdateText] = useState('')
+  const updateRef = useRef<HTMLTextAreaElement>(null)
 
   const tasks = project.tasks ?? []
   const hasTasks = tasks.length > 0
@@ -220,12 +224,25 @@ function Row({
           ))}
 
           {hovered && !snoozed && project.status !== 'done' && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setPickerOpen((v) => !v) }}
-              className="font-mono text-[11px] text-muted hover:text-ink"
-            >
-              snooze
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setUpdateOpen((v) => !v)
+                  setPickerOpen(false)
+                  setTimeout(() => updateRef.current?.focus(), 50)
+                }}
+                className="font-mono text-[11px] text-muted hover:text-ink"
+              >
+                update
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setPickerOpen((v) => !v); setUpdateOpen(false) }}
+                className="font-mono text-[11px] text-muted hover:text-ink"
+              >
+                snooze
+              </button>
+            </div>
           )}
           {hovered && snoozed && (
             <button
@@ -239,7 +256,14 @@ function Row({
             <span className="min-w-[58px] text-right font-mono text-[12px] text-muted">
               {snoozed && project.snoozedUntil
                 ? `until ${project.snoozedUntil.slice(5)}`
-                : meta(project)}
+                : (() => {
+                    const entries = todayLogEntries(project)
+                    if (entries.length && !snoozed && project.status !== 'done') {
+                      const mins = Math.floor((Date.now() - new Date(entries[0].at).getTime()) / 60000)
+                      return mins < 60 ? `updated ${mins}m ago` : `updated ${Math.floor(mins/60)}h ago`
+                    }
+                    return meta(project)
+                  })()}
             </span>
           )}
 
@@ -258,6 +282,32 @@ function Row({
             <InlineNode key={t.id} projectId={project.id} task={t} depth={0} />
           ))}
         </div>
+      )}
+
+      {updateOpen && (
+        <div className="pb-3 pl-[46px] pr-2" onClick={(e) => e.stopPropagation()}>
+          <textarea
+            ref={updateRef}
+            value={updateText}
+            onChange={(e) => setUpdateText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                const text = updateText.trim()
+                if (text) { addLogEntry(project.id, text); setUpdateText('') }
+                setUpdateOpen(false)
+              }
+              if (e.key === 'Escape') { setUpdateOpen(false); setUpdateText('') }
+            }}
+            placeholder="what happened on this today… (enter to save)"
+            rows={2}
+            className="w-full resize-none border-b border-rule bg-transparent pb-1 font-serif text-[14px] text-ink outline-none placeholder:text-muted focus:border-ink"
+          />
+        </div>
+      )}
+
+      {!snoozed && lit && !updateOpen && todayLogEntries(project).length === 0 && (
+        <div className="pb-2 pl-[46px] font-mono text-[11px] text-muted/50">no update today</div>
       )}
     </div>
   )
