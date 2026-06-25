@@ -4,8 +4,12 @@ import type { Project, Task } from '../types'
 import { useStore } from '../store'
 import { relativeTime, isStale, initials, nextOpenTask } from '../lib/ui'
 
+function localDateStr(d = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function today(): string {
-  return new Date().toISOString().slice(0, 10)
+  return localDateStr()
 }
 
 function isSnoozed(p: Project): boolean {
@@ -15,7 +19,7 @@ function isSnoozed(p: Project): boolean {
 function addDays(n: number): string {
   const d = new Date()
   d.setDate(d.getDate() + n)
-  return d.toISOString().slice(0, 10)
+  return localDateStr(d)
 }
 
 function meta(p: Project): string {
