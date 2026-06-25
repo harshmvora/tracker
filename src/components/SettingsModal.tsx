@@ -6,6 +6,7 @@ import {
   notificationsSupported,
   notificationPermission,
   requestNotificationPermission,
+  fireNotification,
 } from '../lib/notifications'
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
@@ -92,8 +93,14 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                 <p className="font-mono text-[12px] text-ink">
                   enabled —{' '}
                   <span className="text-muted">
-                    you'll get a desktop notification when a snoozed project wakes up.
+                    you'll be reminded every 2 hours when a snoozed project is due.{' '}
                   </span>
+                  <button
+                    onClick={() => fireNotification('tracker', 'Notifications are working.')}
+                    className="text-ink underline decoration-rule underline-offset-2 hover:decoration-ink"
+                  >
+                    test
+                  </button>
                 </p>
               ) : permission === 'denied' ? (
                 <p className="font-mono text-[12px] text-muted">
