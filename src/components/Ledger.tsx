@@ -127,7 +127,8 @@ function Row({
   const [expanded, setExpanded] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [updateOpen, setUpdateOpen] = useState(false)
+  // 'update' = freeform note, 'complete' = required update before marking done
+  const [inputMode, setInputMode] = useState<'update' | 'complete' | null>(null)
   const [updateText, setUpdateText] = useState('')
   const updateRef = useRef<HTMLTextAreaElement>(null)
 
@@ -183,11 +184,16 @@ function Row({
           <button
             onClick={(e) => {
               e.stopPropagation()
-              if (next) toggleTask(project.id, next.id)
-              else updateProject(project.id, { status: 'done' })
+              setInputMode('complete')
+              setPickerOpen(false)
+              setTimeout(() => updateRef.current?.focus(), 50)
             }}
             aria-label="complete your move"
-            className="mt-[3px] grid h-[15px] w-[15px] self-start place-items-center rounded-[4px] border border-rule text-transparent transition hover:border-mark hover:text-mark"
+            className={`mt-[3px] grid h-[15px] w-[15px] self-start place-items-center rounded-[4px] border transition ${
+              inputMode === 'complete'
+                ? 'border-mark text-mark'
+                : 'border-rule text-transparent hover:border-mark hover:text-mark'
+            }`}
           >
             <Check className="h-3 w-3" strokeWidth={3} />
           </button>
@@ -228,7 +234,7 @@ function Row({
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  setUpdateOpen((v) => !v)
+                  setInputMode((m) => m === 'update' ? null : 'update')
                   setPickerOpen(false)
                   setTimeout(() => updateRef.current?.focus(), 50)
                 }}
@@ -237,7 +243,7 @@ function Row({
                 update
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); setPickerOpen((v) => !v); setUpdateOpen(false) }}
+                onClick={(e) => { e.stopPropagation(); setPickerOpen((v) => !v); setInputMode(null) }}
                 className="font-mono text-[11px] text-muted hover:text-ink"
               >
                 snooze
@@ -284,8 +290,13 @@ function Row({
         </div>
       )}
 
-      {updateOpen && (
+      {inputMode && (
         <div className="pb-3 pl-[46px] pr-2" onClick={(e) => e.stopPropagation()}>
+          {inputMode === 'complete' && (
+            <div className="mb-1 font-mono text-[11px] text-muted">
+              what happened? — then it's done.
+            </div>
+          )}
           <textarea
             ref={updateRef}
             value={updateText}
@@ -294,19 +305,29 @@ function Row({
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 const text = updateText.trim()
-                if (text) { addLogEntry(project.id, text); setUpdateText('') }
-                setUpdateOpen(false)
+                if (!text) return
+                addLogEntry(project.id, text)
+                setUpdateText('')
+                setInputMode(null)
+                if (inputMode === 'complete') {
+                  if (next) toggleTask(project.id, next.id)
+                  else updateProject(project.id, { status: 'done' })
+                }
               }
-              if (e.key === 'Escape') { setUpdateOpen(false); setUpdateText('') }
+              if (e.key === 'Escape') { setInputMode(null); setUpdateText('') }
             }}
-            placeholder="what happened on this today… (enter to save)"
+            placeholder={
+              inputMode === 'complete'
+                ? 'write what happened, then press enter to mark done…'
+                : 'what happened on this today… (enter to save)'
+            }
             rows={2}
             className="w-full resize-none border-b border-rule bg-transparent pb-1 font-serif text-[14px] text-ink outline-none placeholder:text-muted focus:border-ink"
           />
         </div>
       )}
 
-      {!snoozed && lit && !updateOpen && todayLogEntries(project).length === 0 && (
+      {!snoozed && lit && !inputMode && todayLogEntries(project).length === 0 && (
         <div className="pb-2 pl-[46px] font-mono text-[11px] text-muted/50">no update today</div>
       )}
     </div>
