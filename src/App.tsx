@@ -25,7 +25,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [eodOpen, setEodOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const { project: checkInProject, dismiss: dismissCheckIn } = useCheckIn(projects)
+  const { queue: checkInQueue, open: checkInOpen, close: closeCheckIn } = useCheckIn(projects)
 
   // Fire desktop notifications every 2 hours for snoozed-and-due projects
   useEffect(() => {
@@ -129,8 +129,8 @@ export default function App() {
       {selected && <ProjectDetail project={selected} onClose={() => setSelectedId(null)} />}
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {eodOpen && <EodReport projects={projects} onClose={() => setEodOpen(false)} />}
-      {checkInProject && !eodOpen && !settingsOpen && (
-        <CheckIn project={checkInProject} onDone={dismissCheckIn} />
+      {checkInOpen && !eodOpen && !settingsOpen && (
+        <CheckIn queue={checkInQueue} onClose={closeCheckIn} />
       )}
     </div>
   )
