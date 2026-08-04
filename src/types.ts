@@ -1,4 +1,5 @@
 export type ProjectStatus = 'active' | 'waiting' | 'stalled' | 'done'
+export type Priority = 'high' | 'medium' | 'low'
 
 export interface LogEntry {
   id: string
@@ -23,6 +24,7 @@ export interface Project {
   tasks: Task[]
   people: string[]
   waitingOn?: string
+  priority?: Priority
   due?: string // YYYY-MM-DD
   snoozedUntil?: string // YYYY-MM-DD — hide from "on you tonight" until this date
   tags: string[]

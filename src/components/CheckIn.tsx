@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Project } from '../types'
 import { useStore } from '../store'
 import { todayLogEntries } from '../lib/ui'
 
@@ -13,30 +12,43 @@ function addDays(n: number): string {
   return localDateStr(d)
 }
 
-function needsCheckIn(p: Project): boolean {
-  return (
-    (p.status === 'active' || p.status === 'stalled') &&
-    !p.snoozedUntil &&
-    todayLogEntries(p).length === 0
-  )
+function isSnoozed(snoozedUntil?: string): boolean {
+  return !!snoozedUntil && snoozedUntil > localDateStr()
 }
 
-export function useCheckIn(projects: Project[]) {
-  const [queue, setQueue] = useState<Project[]>([])
+function buildQueue(projects: ReturnType<typeof useStore.getState>['projects']): string[] {
+  return projects
+    .filter(
+      (p) =>
+        (p.status === 'active' || p.status === 'stalled') &&
+        !isSnoozed(p.snoozedUntil) &&
+        todayLogEntries(p).length === 0,
+    )
+    .sort((a, b) => new Date(a.lastTouched).getTime() - new Date(b.lastTouched).getTime())
+    .map((p) => p.id)
+}
+
+export function useCheckIn() {
+  const projects = useStore((s) => s.projects)
+  const [queueIds, setQueueIds] = useState<string[]>([])
   const [open, setOpen] = useState(false)
 
   function trigger() {
-    const pending = projects
-      .filter(needsCheckIn)
-      .sort((a, b) => new Date(a.lastTouched).getTime() - new Date(b.lastTouched).getTime())
-    if (pending.length > 0) {
-      setQueue(pending)
+    // Only trigger once projects are loaded
+    if (projects.length === 0) return
+    const ids = buildQueue(projects)
+    if (ids.length > 0) {
+      setQueueIds(ids)
       setOpen(true)
     }
   }
 
-  useEffect(() => { trigger() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Trigger on mount (once projects are available)
+  useEffect(() => {
+    if (projects.length > 0) trigger()
+  }, [projects.length > 0]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Trigger on tab becoming visible
   useEffect(() => {
     function onVisible() {
       if (document.visibilityState === 'visible') trigger()
@@ -45,7 +57,7 @@ export function useCheckIn(projects: Project[]) {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [projects]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { queue, open, close: () => setOpen(false) }
+  return { queueIds, open, close: () => setOpen(false) }
 }
 
 const SNOOZE_OPTIONS = [
@@ -55,12 +67,13 @@ const SNOOZE_OPTIONS = [
 ]
 
 export function CheckIn({
-  queue,
+  queueIds,
   onClose,
 }: {
-  queue: Project[]
+  queueIds: string[]
   onClose: () => void
 }) {
+  const projects = useStore((s) => s.projects)
   const addLogEntry = useStore((s) => s.addLogEntry)
   const snoozeProject = useStore((s) => s.snoozeProject)
   const updateProject = useStore((s) => s.updateProject)
@@ -68,23 +81,32 @@ export function CheckIn({
   const [index, setIndex] = useState(0)
   const [text, setText] = useState('')
   const [mode, setMode] = useState<'update' | 'snooze'>('update')
-  const [customDate, setCustomDate] = useState('')
   const textRef = useRef<HTMLTextAreaElement>(null)
 
-  const project = queue[index]
-  const total = queue.length
-  const isLast = index === total - 1
+  // Find live project from store (never stale)
+  const id = queueIds[index]
+  const project = projects.find((p) => p.id === id)
+
+  const total = queueIds.length
+  const isLast = index >= total - 1
 
   useEffect(() => {
     setText('')
     setMode('update')
-    setCustomDate('')
     if (mode === 'update') setTimeout(() => textRef.current?.focus(), 50)
   }, [index]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (mode === 'update') setTimeout(() => textRef.current?.focus(), 50)
   }, [mode])
+
+  // Skip projects that no longer need check-in (updated mid-session)
+  useEffect(() => {
+    if (!project) return
+    if (todayLogEntries(project).length > 0 || isSnoozed(project.snoozedUntil) || project.status === 'done') {
+      advance()
+    }
+  }, [project]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!project) return null
 
@@ -96,17 +118,17 @@ export function CheckIn({
   function saveUpdate() {
     const t = text.trim()
     if (!t) return
-    addLogEntry(project.id, t)
+    addLogEntry(project!.id, t)
     advance()
   }
 
   function doSnooze(date: string) {
-    snoozeProject(project.id, date)
+    snoozeProject(project!.id, date)
     advance()
   }
 
   function markDone() {
-    updateProject(project.id, { status: 'done' })
+    updateProject(project!.id, { status: 'done' })
     advance()
   }
 
@@ -133,7 +155,7 @@ export function CheckIn({
             <div className="mt-1 font-mono text-[12px] text-muted">{project.nextAction}</div>
           )}
 
-          {/* mode tabs */}
+          {/* action tabs */}
           <div className="mt-5 flex gap-4 border-b border-rule pb-3">
             <button
               onClick={() => setMode('update')}
@@ -197,8 +219,7 @@ export function CheckIn({
                 <input
                   type="date"
                   min={addDays(1)}
-                  value={customDate}
-                  onChange={(e) => { setCustomDate(e.target.value); if (e.target.value) doSnooze(e.target.value) }}
+                  onChange={(e) => { if (e.target.value) doSnooze(e.target.value) }}
                   className="mt-1 block w-full bg-transparent font-mono text-[13px] text-ink outline-none [color-scheme:dark]"
                 />
               </div>

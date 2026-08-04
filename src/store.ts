@@ -135,6 +135,7 @@ interface State {
   addLogEntry: (projectId: string, text: string) => void
   snoozeProject: (id: string, until: string) => void
   unsnoozeProject: (id: string) => void
+  setProjectPriority: (id: string, priority: import('./types').Priority | undefined) => void
   loadExamples: () => void
   clearAll: () => void
   importProjects: (projects: Project[]) => void
@@ -287,6 +288,13 @@ export const useStore = create<State>()(
         set((s) => ({
           projects: s.projects.map((p) =>
             p.id === id ? { ...p, snoozedUntil: undefined } : p,
+          ),
+        })),
+
+      setProjectPriority: (id, priority) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === id ? { ...p, priority, lastTouched: nowISO() } : p,
           ),
         })),
 

@@ -215,6 +215,9 @@ function Row({
 
         <span className={`truncate font-serif text-[15px] ${lit && !snoozed ? 'text-ink' : 'text-muted'}`}>
           {project.name}
+          {project.priority === 'high' && (
+            <span className="ml-1.5 font-mono text-[10px] text-mark/80">↑</span>
+          )}
         </span>
         <span className="min-w-0">{action}</span>
 
@@ -384,9 +387,11 @@ export function Ledger({
     )
   }
 
+  const priorityRank = (p: Project) => ({ high: 0, medium: 1, low: 2 }[p.priority ?? 'medium'] ?? 1)
+
   const onYou = projects
     .filter((p) => (p.status === 'active' || p.status === 'stalled') && !isSnoozed(p))
-    .sort((a, b) => Number(isStale(b)) - Number(isStale(a)) || recency(a, b))
+    .sort((a, b) => priorityRank(a) - priorityRank(b) || Number(isStale(b)) - Number(isStale(a)) || recency(a, b))
 
   const notTonight = projects
     .filter((p) => (p.status === 'active' || p.status === 'stalled') && isSnoozed(p))

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import type { Project, ProjectStatus } from '../types'
+import type { Priority, Project, ProjectStatus } from '../types'
 import { useStore } from '../store'
 import { relativeTime, openLeafCount } from '../lib/ui'
 import { TaskTree } from './TaskTree'
@@ -9,6 +9,7 @@ const STATUSES: ProjectStatus[] = ['active', 'waiting', 'stalled', 'done']
 
 export function ProjectDetail({ project, onClose }: { project: Project; onClose: () => void }) {
   const updateProject = useStore((s) => s.updateProject)
+  const setProjectPriority = useStore((s) => s.setProjectPriority)
   const renameProject = useStore((s) => s.renameProject)
   const deleteProject = useStore((s) => s.deleteProject)
   const [name, setName] = useState(project.name)
@@ -70,6 +71,25 @@ export function ProjectDetail({ project, onClose }: { project: Project; onClose:
                   }`}
                 >
                   {st}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="font-mono text-[11px] text-muted">priority</div>
+            <div className="mt-2 flex gap-1.5">
+              {(['high', 'medium', 'low'] as Priority[]).map((pr) => (
+                <button
+                  key={pr}
+                  onClick={() => setProjectPriority(project.id, project.priority === pr ? undefined : pr)}
+                  className={`rounded px-2.5 py-1 font-mono text-[12px] ${
+                    project.priority === pr
+                      ? 'bg-ink text-paper'
+                      : 'border border-rule text-muted hover:text-ink'
+                  }`}
+                >
+                  {pr}
                 </button>
               ))}
             </div>
